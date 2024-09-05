@@ -14,7 +14,6 @@ public class AccountServiceApplication {
     public static void main(String[] args) {
         AccountDaoJdbcImpl service = new AccountDaoJdbcImpl();
         service.createAccountTable();
-        System.out.println(UUID.randomUUID());
         Scanner myObj = new Scanner(System.in);
         String name;
         String lastName;
