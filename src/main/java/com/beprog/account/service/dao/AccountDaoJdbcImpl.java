@@ -3,91 +3,79 @@ package com.beprog.account.service.dao;
 import com.beprog.account.service.model.Account;
 import com.beprog.account.service.utils.DbUtil;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import jakarta.persistence.Entity;
+import jakarta.persistence.QueryHint;
+import jakarta.persistence.Table;
+import jakarta.persistence.Tuple;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+import org.hibernate.resource.transaction.spi.TransactionStatus;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
 
 public class AccountDaoJdbcImpl implements AccountDao {
 
     @Override
     public void createAccountTable() {
-        try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            st.execute("CREATE TABLE IF NOT EXISTS accounts (id UUID PRIMARY KEY, name varchar(80), lastName varchar(80))");
-            System.out.println("table created");
-            st.close();
-            con.close();
-        } catch (SQLException | ClassNotFoundException e) {
-            System.out.println(e.getClass());
-            System.out.println(e.getMessage());
-        }
+        DbUtil.createSessionFactory();
     }
 
     @Override
     public void dropAccountTable() {
-        try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            st.execute("DROP TABLE IF EXISTS accounts");
-            System.out.println("table erased");
-            st.close();
-            con.close();
-        } catch (SQLException | ClassNotFoundException e) {
-            System.out.println(e.getClass());
-            System.out.println(e.getMessage());
-        }
+        DbUtil.closeSessionFactory();
     }
 
     @Override
     public UUID saveAccount(Account account) {
+        Session session = DbUtil.getMyConnection();
         try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            st.execute(String.format("INSERT INTO accounts VALUES ('%s', '%s', '%s')", account.getId(), account.getName(), account.getLastName()));
+            Transaction transaction = session.beginTransaction();
+            session.persist(account);
             System.out.printf("Account с именем %s добавлен в базу данных\n", account.getName());
-            st.close();
-            con.close();
-        } catch (SQLException | ClassNotFoundException e) {
+            transaction.commit();
+            return account.getId();
+        } catch (Exception e) {
+            if (session.getTransaction().getStatus() == TransactionStatus.ACTIVE
+                    || session.getTransaction().getStatus() == TransactionStatus.MARKED_ROLLBACK) {
+                session.getTransaction().rollback();
+            }
             System.out.println(e.getClass());
             System.out.println(e.getMessage());
+        } finally {
+            session.close();
         }
         return null;
     }
 
     @Override
     public void updateAccount(Account account) {
+        Session session = DbUtil.getMyConnection();
         try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            st.execute(String.format("UPDATE accounts SET name = '%s', lastName = '%s' WHERE id = '%s'", account.getName(), account.getLastName(), account.getId()));
+            Transaction transaction = session.beginTransaction();
+            session.merge(account);
             System.out.printf("Обновлён аккаунт с id %s\n", account.getId());
-            st.close();
-            con.close();
-        } catch (SQLException | ClassNotFoundException e) {
+            transaction.commit();
+        } catch (Exception e) {
+            if (session.getTransaction().getStatus() == TransactionStatus.ACTIVE
+                    || session.getTransaction().getStatus() == TransactionStatus.MARKED_ROLLBACK) {
+                session.getTransaction().rollback();
+            }
             System.out.println(e.getClass());
             System.out.println(e.getMessage());
+        } finally {
+            session.close();
         }
     }
 
     @Override
     public Account findAccountById(UUID id) {
-        try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery(String.format("SELECT * EXCEPT id FROM accounts WHERE id = '%s'", id));
-            st.close();
-            con.close();
-            String name = rs.getString("name");
-            String lastName = rs.getString("lastName");
-            Account result = new Account(id, name, lastName);
-            rs.close();
-            return result;
-        } catch (SQLException | ClassNotFoundException e) {
+        try (Session session = DbUtil.getMyConnection()) {
+            return session.get(Account.class, id);
+        } catch (Exception e) {
             System.out.println(e.getClass());
             System.out.println(e.getMessage());
         }
@@ -96,41 +84,33 @@ public class AccountDaoJdbcImpl implements AccountDao {
 
     @Override
     public List<Account> findAllAccounts() {
-        try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery("SELECT * FROM accounts");
-            List<Account> result = new ArrayList<>();
-            while (rs.next()) {
-                UUID id = (UUID) rs.getObject("id");
-                String name = rs.getString("name");
-                String lastName = rs.getString("lastName");
-                Account acc = new Account(id, name, lastName);
-                result.add(acc);
-            }
-            rs.close();
-            st.close();
-            con.close();
-            return result;
-        } catch (SQLException | ClassNotFoundException e) {
+        try (Session session = DbUtil.getMyConnection()) {
+            return session.createQuery("FROM Account", Account.class).getResultList();
+        } catch (Exception e) {
             System.out.println(e.getClass());
             System.out.println(e.getMessage());
         }
-        return null;
+        return new ArrayList<>();
     }
 
     @Override
     public void deleteAccountById(UUID id) {
+        Session session = DbUtil.getMyConnection();
         try {
-            Connection con = DbUtil.getMyConnection();
-            Statement st = con.createStatement();
-            st.execute(String.format("DELETE FROM accounts WHERE id = '%s'", id));
+            Transaction transaction = session.beginTransaction();
+            Account account = session.get(Account.class, id);
+            session.remove(account);
             System.out.printf("deleted account with id %s\n", id);
-            st.close();
-            con.close();
-        } catch (SQLException | ClassNotFoundException e) {
+            transaction.commit();
+        } catch (Exception e) {
+            if (session.getTransaction().getStatus() == TransactionStatus.ACTIVE
+                    || session.getTransaction().getStatus() == TransactionStatus.MARKED_ROLLBACK) {
+                session.getTransaction().rollback();
+            }
             System.out.println(e.getClass());
             System.out.println(e.getMessage());
+        } finally {
+            session.close();
         }
     }
 }

@@ -1,13 +1,21 @@
 package com.beprog.account.service.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
 import java.util.UUID;
 
+@Entity
+@Table(name = "accounts")
 public class Account {
 
+    @Id
     private UUID id;
-
+    @Column(name="name")
     private String name;
-
+    @Column(name="lastname")
     private String lastName;
 
     public Account() {
